@@ -163,10 +163,7 @@ class DicomAnonymizer():
             self.rt_struct_file_number = 1
             self.rt_plan_file_number = 1
             
-            print( self.datFldrList[k]['content_dirs'])
-
             for f in self.datFldrList[k]['content_dirs']:
-                print(f)
                 # 1. Read DICOM file
                 ds = dcmread(os.path.join(self.datFldrList[k]['dir'], f))
                 # 2. Anonymize data

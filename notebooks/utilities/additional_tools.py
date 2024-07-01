@@ -50,6 +50,48 @@ def interpolate_volume(origVol, origCoords, intCoords, intMethod='linear',
     
     return interpFunc, intVol
 
+def resize_to_user_resolution(volume, in_coords, voxel_dimensions, coord_precision = 4, fill_value = 0):
+    
+    coords = copy.deepcopy(in_coords) # make a copy of the coordinates
+
+    # compare desired resoltion with that of the selected patient data
+    dx,dy,dz = np.round(np.array(voxel_dimensions), coord_precision)
+
+    if dx != np.round(coords.dx, coord_precision) or dz != np.round(coords.dz, coord_precision):
+    
+        x,y,z = coords.x, coords.y, coords.z
+        z_new = np.round(np.arange(z[0], z[-1]+dz, dz), coord_precision)
+        y_new = np.round(np.arange(y[0], y[-1]+dy, dy), coord_precision)
+        x_new = np.round(np.arange(x[0], x[-1]+dx, dx), coord_precision)
+        
+        # resize the dose volume
+        new_volume = interpolate_volume(volume, (z,y,x), (z_new,y_new,x_new), boundError= False, fillValue=fill_value)
+        
+        # update the coordinates
+        new_coords = copy.deepcopy(coords)
+        new_coords.x, new_coords.y, new_coords.z = x_new, y_new, z_new
+        new_coords.dx, new_coords.dy, new_coords.dz = dx, dy, dz 
+
+        return new_volume, new_coords
+
+    else:
+        return volume, coords
+
+def apply_windowing(ct_scan, window_width, window_center):
+
+    # Calculate the lower and upper bounds
+    lower_bound = window_center - (window_width / 2)
+    upper_bound = window_center + (window_width / 2)
+    
+    # Apply the windowing
+    windowed_ct = np.clip(ct_scan, lower_bound, upper_bound)
+    
+    # Normalize the values to the range [0, 255]
+    windowed_ct = ((windowed_ct - lower_bound) / (upper_bound - lower_bound)) * 255.0
+    windowed_ct = windowed_ct.astype(np.uint8)
+    
+    return windowed_ct
+
 def patchify(data, d, s):
     
     d = np.array(d)
