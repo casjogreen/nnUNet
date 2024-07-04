@@ -115,7 +115,7 @@ class DicomToolbox():
 
         Created on the Fall of 2021 by Ivan Vazquez in collaboration with Ming Yang. 
 
-        Last updated: January 2024
+        Last updated: Summer 2024
 
         Copyright 2021-2024 Ivan Vazquez
     """
