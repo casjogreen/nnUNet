@@ -195,6 +195,7 @@ class DicomToolbox():
         self.echo_progress = True
         self.uniform_slice_thickness = True
         self.echo_level = 0
+        self.minimum_ct_value = None
         self.coordinate_precision = 3
         self.equalize_dose_grid_dimensions = True
           
@@ -463,41 +464,49 @@ class DicomToolbox():
         if patient_id is not None: 
             self.patient_id = str(patient_id)
             files = self.run_initial_check(self.patient_id)['ct']
+        
+        if self.echo_level > 0: self.__logger.info(f'Parsing CT data for patient {self.patient_id}.')
             
         # Prepare CT volume
         ct_slices = {dcmread(f).ImagePositionPatient[-1]:dcmread(f).pixel_array for f in files}
+        
+        if self.echo_level > 0: self.__logger.info(f'CT slice positions: {", ".join([str(n) for n in sorted([i for i in ct_slices.keys()])])}')
+
         ## Construct the z coordinate array 
-        z = sorted(list(ct_slices.keys()))
+        z = sorted([z_coord for z_coord in ct_slices])
         ## Build 3D CT dataset
         data = np.array([ct_slices[i].astype(float) for i in z])
         ## Determine the number of slice spacings used for the CT data         
         z_spacing = list(set(list(np.round(np.array(z[1:]) - np.array(z[0:-1]), self.coordinate_precision))))
         z = np.round(z, self.coordinate_precision)
         
+
+        # Grab data properties and check consistency
+        patient_position = [dcmread(f).PatientPosition.lower() for f in files]
+        image_position_x = [round(dcmread(f).ImagePositionPatient[0], self.coordinate_precision) for f in files]
+        image_position_y = [round(dcmread(f).ImagePositionPatient[1], self.coordinate_precision) for f in files]
+        xy_resolution = [[np.round(float(i),self.coordinate_precision) for i in dcmread(f).PixelSpacing] for f in files]
+        rescale_slope = [dcmread(f).RescaleSlope for f in files]
+        rescale_intercept = [dcmread(f).RescaleIntercept for f in files]
+        slice_thickness = [round(dcmread(f).SliceThickness, self.coordinate_precision) for f in files]
+        
+        assert len(set(patient_position)) == 1, f'Multiple patient positions in the CT files were identified for patient {self.patient_id}.'
+        assert len(set(image_position_x)) == 1 and len(set(image_position_y)) == 1, f'Multiple image positions in the CT files were identified for patient {self.patient_id}.'
+        assert len(set(rescale_intercept)) == 1, f'Multiple rescale intercepts were identified for the CT data of patient {self.patient_id}.'
+        assert len(set(rescale_slope)) == 1, f'Multiple rescale slopes were identified for the CT data of patient {self.patient_id}.'
+        assert len(set([tuple(i) for i in xy_resolution])) == 1
+        
+        image_position = [image_position_x[0], image_position_y[0]]
+        rescale_slope = rescale_slope[0]
+        rescale_intercept = rescale_intercept[0]
+        xy_resolution = xy_resolution[0]
+        patient_position = patient_position[0]
+      
         if len(z_spacing) > 1:
             self.__logger.warning(f"Multiple slice thicknesses were identified for the CT data of patient {self.patient_id}: {', '.join([str(i) for i in z_spacing])} mm") 
-        
-        with dcmread(files[0]) as ds:
-            
-            # Grab the position of the patient
-            patient_position = ds.PatientPosition.lower()
-                   
-            ## Grab image position (patient) attribute
-            image_position = [np.round(p, self.coordinate_precision) for p in ds.ImagePositionPatient]
-                       
-            ## Update z-value of image position
-            image_position[-1] = z[0]
 
-            ## Store CT Study information
-            xy_resolution = [np.round(float(i),self.coordinate_precision) for i in ds.PixelSpacing]
-            rescale_slope = ds.RescaleSlope
-            rescale_intercept = ds.RescaleIntercept     
-            slice_thickness = np.round(ds.SliceThickness, self.coordinate_precision)
-            
-            # if np.round(ds.SliceThickness,self.coordinate_precision) not in z_spacing:
-            #     self.__logger.warning(f'Mistmatch between the slice thickness {ds.SliceThickness}-mm and '
-            #                           f'coordinate spacings ({", ".join([str(i) for i in z_spacing])})-mm for patient {self.patient_id}.')
-                 
+        image_position = [x for x in image_position] + [round(z[0], self.coordinate_precision)]
+              
         ## Prepare the x and y coordinates
         x = np.round(np.arange(data.shape[2]) * xy_resolution[0] + image_position[0], self.coordinate_precision)
         y = np.round(np.arange(data.shape[1]) * xy_resolution[1] + image_position[1], self.coordinate_precision)
@@ -523,10 +532,13 @@ class DicomToolbox():
         
         ## Create coordinate object for CT data
         coordinates = Coordinates(x,y,z,dx,dy,dz,image_position)
-
+        
         ## Convert units to HU if specified
         if units == 'hu': data = data * rescale_slope + rescale_intercept
-        if units != 'hu': units = 'original'    
+        if units != 'hu': units = 'original'   
+        
+        if self.minimum_ct_value is not None:
+            data[data < self.minimum_ct_value] = self.minimum_ct_value 
 
         ## Save a copy of the original CT information to help create the masks
         self.original_ct_coordinates = Coordinates(x,y,z,dx,dy,dz,image_position)
