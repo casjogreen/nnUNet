@@ -2,9 +2,199 @@
 	"common_carotid_artery":[
 		"common carotid"
 		],
-	"lingual_artery":[
-		"lingual a",
-        "lingual artery"
+	"brain":[
+		"brain",
+		"whole brain",
+		"whole_brain",
+		"wholebrain",
+		"normal brain",
+		"normal_brain"
+		],
+	"brain_stem":[
+		"brain_stem",
+		"brain stem",
+		"brainstem",
+		"braintem",
+		"brainstm",
+        "brnstm",
+		"brainstm_part_kc"
+		],
+	"chiasm":[
+		"chiasm",
+		"optic chia",
+		"optic chiasm",
+		"opticchiasm",
+        "optic_chi",
+		"optic_chiasm"
+		],
+	"oral_cavity":[
+		"oral_cavity",
+		"oral cavity",
+		"oralcavity",
+        "oral cavi",
+        "ocavity",
+        "oral cav",
+        "oral_cav",
+		"cavity_oral",
+		"cavity_oral_kc"
+		],
+	"cochlea":[
+		"cochlea",
+		"cochlear",
+        "coch"
+		],
+	"esophagus":[
+		"esophagus",
+		"cervical esophag",
+		"eso",
+		"esoph",
+		"esopha",
+		"esopha"
+		],
+    "lens":[
+		"lens"
+		],
+	"eye":[
+		"eye", 
+		"eyes",
+		"globe"
+		],
+	"submandibular":[
+		"submandibular",
+		"submandibula",
+		"submandibul",
+		"submandibu",
+        "submand",
+		"submmnd_slv",
+        "smand",
+        "submandib",
+		"submandiular",
+		"smg",
+        "sm"
+		],
+
+	"larynx":[
+		"larynx",
+        "laryn",
+		"larynx - manny"
+	],
+	"mandible":[
+		"mandible",
+		"mendible",
+		"mandible_bone",
+		"mandible-bone",
+		"bone_mandible",
+		"bone-mandible",
+		"bone mandible"
+		],
+	"optic_nerve":[
+		"optic_nerve",
+		"optic nerve",
+		"optic-nerve",
+		"optic nerv",
+		"opticnrv",
+		"optic_nrv",
+		"opticnerve",
+		"optic_n",
+		"optic n",
+		"opticnerve",
+		"opnerve",
+		"optnerve",
+		"optic"
+		],
+	"parotid":[
+		"parotid"
+		],
+	"spinal_cord":[
+		"cord",
+		"spinal_cord",
+		"spinalcord",
+		"spinal cord",
+		"spine"
+		],
+	"vertebral_column":[
+		"vertebral_column",
+        "vertebralcolumn"
+		],
+	"femoral_heads":[
+		"femoral heads",
+		"femoral heads",
+		"femoral head",
+		"femh",
+		"fem head",
+		"fem heads"
+		],
+	"bladder":[
+		"bladder"
+		],
+	"rectum":[
+		"rectum"
+	],
+	"kidney":[
+		"kidney"
+		],
+	"l4":[
+		"l4"
+		],
+	"l5":[
+		"l5"
+		],
+	"liver":[
+		"liver"
+		],
+	"pelvic_bone":[
+		"pelvis"
+		],
+	"sacrum":[
+		"sacrum"
+		],
+	"breast":[
+		"breast"
+		],
+	"lung":[
+		"lung",
+		"lungs"
+		],
+	"thyroid":[
+		"thyroid"
+		],
+	"heart":[
+		"heart"
+		],
+	"brachial_plexus":[
+		"brachial_plexus",
+		"brachialplexus",
+		"brachialplex"
+		],
+	"ring":[
+		"ring_final"
+	],
+	"small_bowel":[
+		"small_bowel",
+		"small bowel",
+		"smallbowel",
+		"bowel_small",
+		"bowel small"
+		],
+	"stomach":[
+		"stomach"
+		],
+	"large_bowel":[
+		"large_bowel",
+		"large bowel",
+		"largebowel",
+		"bowel_large",
+		"bowel large",
+		"ilargebowel"
+		],
+	"pancreas":[
+		"pancreas"
+		],
+	"spleen":[
+		"spleen"
+		],
+	"duodenum":[
+		"duodenum"
 		],
 	"sides":{
 		"left":["l", "lt", "left", "lft", "lf", "lef", "le", "i"],

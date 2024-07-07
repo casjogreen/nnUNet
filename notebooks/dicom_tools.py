@@ -156,6 +156,7 @@ class DicomToolbox():
         self.parallelize = None
         self.n_threads = self.user_inputs["PARALLELIZATION"]["number_of_processors"]
         self.min_coordinate_precision = 3
+        self.expected_data = ['ct', 'rtdose', 'rtplan', 'rtstruct']
     
     def __set_default_user_inputs(self):
             self.user_inputs = {
@@ -190,7 +191,6 @@ class DicomToolbox():
         self.write_new_hdf5_file = True
         self.relevant_masks = None
         self.compression = 'lzf'
-        self.expected_data = ['ct', 'rtdose', 'rtplan', 'rtstruct']
         self.radiation_type = None
         self.echo_progress = True
         self.uniform_slice_thickness = True
@@ -308,7 +308,8 @@ class DicomToolbox():
         """
         
         if self.radiation_type is not None: return
-        if 'rtdose' not in self.expected_data: return
+        
+        if self.patient_files['plan'] == [] and 'rtdose' not in self.expected_data: return
                         
         try:      
             ds = dcmread(patient_files['plan'][0])      
@@ -339,7 +340,7 @@ class DicomToolbox():
             files = os.listdir(patient_directory)
         
             # Find directory of all type of DICOM files 
-            patient_files = {'ct':[], 'plan':[], 'structures':[], 'dose':[]}
+            self.dicom_files = {'ct':[], 'plan':[], 'structures':[], 'dose':[]}
             
             # Discover all of the files for the patients
             for root, _, files in os.walk(patient_directory):
@@ -350,17 +351,17 @@ class DicomToolbox():
                     
                     # Add file to the corresponding list
                     if modality == 'rtdose':
-                        patient_files['dose'].append(os.path.join(root,f))
+                        self.dicom_files['dose'].append(os.path.join(root,f))
         
                     elif modality == 'rtplan':
-                        patient_files['plan'].append(os.path.join(root,f))
+                        self.dicom_files['plan'].append(os.path.join(root,f))
                         
                     elif modality == 'rtstruct':
-                        patient_files['structures'].append(os.path.join(root,f)) 
-                        patient_files['structures'] = sorted(patient_files['structures'])
+                        self.dicom_files['structures'].append(os.path.join(root,f)) 
+                        self.dicom_files['structures'] = sorted(patient_files['structures'])
                         
                     elif modality == 'ct':
-                        patient_files['ct'].append(os.path.join(root,f))     
+                        self.dicom_files['ct'].append(os.path.join(root,f))     
                         
         except Exception as e:
             self.__logger.error(f"An error occured while trying to read the files for patient {self.patient_id}.")
@@ -368,25 +369,23 @@ class DicomToolbox():
             return None
         
         # identify the radiation type
-        if self.radiation_type is None: 
-            try:
-                self.identify_radiation_type(patient_files, self.patient_id)
+        if self.radiation_type is None and self.dicom_files['plan'] != []: 
+            try:                
+                self.identify_radiation_type(self.dicom_files, self.patient_id)
             except:
                 self.__logger.error(f'Failed to identify the radiation type for pat-{self.patient_id}.')
                 self.radiation_type = 'not-specified'
     
         # Detect incomplete data
         file_types_dict = {'ct':'ct', 'rtdose':'dose', 'rtplan':'plan', 'rtstruct':'structures'}
-        if any([patient_files[k]==[] for k in [file_types_dict[x] for x in self.expected_data]]):
+        if any([self.dicom_files[k]==[] for k in [file_types_dict[x] for x in self.expected_data]]):
             self.__logger.error(f'The full DICOM-RT set ({", ".join(self.expected_data)}) for patient {self.patient_id} could not be read.')
             self.__logger.info("Please change the expected data types by specifying the class attribute 'expected_data' or check the patient folder.")
             return None
         
         # Check the dose files to check for beam-specific or cumulative dose        
-        patient_files['dose'] = self.__check_dose_files(patient_files['dose'])
+        self.dicom_files['dose'] = self.__check_dose_files(self.dicom_files['dose'])
             
-        return patient_files
-    
     def __check_dose_files(self, dose_files):
                 
         dose_file_info = {n:{} for n in dose_files}
@@ -443,7 +442,7 @@ class DicomToolbox():
             return
         
         # Identify the file types in the patient folder and type of radiation therapy
-        self.dicom_files = self.run_initial_check(self.patient_id)
+        self.run_initial_check(self.patient_id)
                         
         # Parse the CT volume
         self.ct = self.parse_ct_study_files(self.dicom_files['ct'])
@@ -480,7 +479,6 @@ class DicomToolbox():
         z_spacing = list(set(list(np.round(np.array(z[1:]) - np.array(z[0:-1]), self.coordinate_precision))))
         z = np.round(z, self.coordinate_precision)
         
-
         # Grab data properties and check consistency
         patient_position = [dcmread(f).PatientPosition.lower() for f in files]
         image_position_x = [round(dcmread(f).ImagePositionPatient[0], self.coordinate_precision) for f in files]
@@ -654,7 +652,7 @@ class DicomToolbox():
         dose, args = {}, []
         for f in dose_files:
             with dcmread(f) as ds:
-                                
+                                                
                 if len(dose_files) == 1: # handles the case for just one dose file
                     try: # check if the dose file is a beam-specific dose file
                         bn = int(ds.ReferencedRTPlanSequence[0][('300c','0020')][0][('300c','0004')][0][('300c','0006')].value)
@@ -664,7 +662,7 @@ class DicomToolbox():
                     self.__logger.info('Assuming that the dose file contains the cummulative dose for the plan.')
                 elif ds.DoseSummationType.lower() != 'plan': # handles the case for multiple dose files (beam-specific)
                     bn = int(ds.ReferencedRTPlanSequence[0][('300c','0020')][0][('300c','0004')][0][('300c','0006')].value)
-                       
+                                           
                 # Grab data
                 data = ds.pixel_array * ds.DoseGridScaling
                 # Grab some data properties
