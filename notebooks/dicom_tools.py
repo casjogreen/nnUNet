@@ -48,6 +48,7 @@ class CommonDoseTags():
     dose_units: str
     data: np.ndarray
     coordinates: Coordinates
+    dose_summation_type: str = 'not_specified'
     beam_number: int = 1
     beam_type: str = 'not_specified'
     gantry_angle: float = 0.0
@@ -65,6 +66,7 @@ class CommonDoseTags():
     beam_dose: float = 0.0
     scan_mode: str = 'not_specified'
     primary_dosimetric_units: str = 'not_specified'
+    
      
 @dataclass
 class ProtonDose(CommonDoseTags):
@@ -110,7 +112,7 @@ class Beam():
     sad: float = 0.0
     vsad: np.ndarray = field(default_factory=lambda: np.array([0, 0, 0]))
 
-class DicomToolbox():
+class DicomTools():
     """"Class for parsing a set of DICOM-RT files for a patient.
 
         Created on the Fall of 2021 by Ivan Vazquez in collaboration with Ming Yang. 
@@ -126,7 +128,7 @@ class DicomToolbox():
 
         # Prepare RSP LUT directory
         if lut_directory is not None:
-            lut_directory = os.path.join('utilities','LUT')
+            lut_directory = os.path.join('resources','LUT')
             if not os.path.isdir(lut_directory): 
                 self.__logger.warning(f'The directory {lut_directory} for the look-up tables does not exist.')
                 self.lut_directory = None
@@ -198,6 +200,7 @@ class DicomToolbox():
         self.minimum_ct_value = None
         self.coordinate_precision = 3
         self.equalize_dose_grid_dimensions = True
+        if hasattr(self, 'dicom_files'): del self.dicom_files
           
     def identify_patient_files(self, patient_data_directory = None, echo=False):
         """Function to identify the number of patient folders with all DICOM-RT files 
@@ -306,10 +309,10 @@ class DicomToolbox():
         function determines the most common radiation type used for the beams in the plan file.
         
         """
-        
+            
         if self.radiation_type is not None: return
         
-        if self.patient_files['plan'] == [] and 'rtdose' not in self.expected_data: return
+        if patient_files['plan'] == [] and 'rtdose' not in self.expected_data: return
                         
         try:      
             ds = dcmread(patient_files['plan'][0])      
@@ -358,7 +361,7 @@ class DicomToolbox():
                         
                     elif modality == 'rtstruct':
                         self.dicom_files['structures'].append(os.path.join(root,f)) 
-                        self.dicom_files['structures'] = sorted(patient_files['structures'])
+                        self.dicom_files['structures'] = sorted(self.dicom_files['structures'])
                         
                     elif modality == 'ct':
                         self.dicom_files['ct'].append(os.path.join(root,f))     
@@ -366,8 +369,14 @@ class DicomToolbox():
         except Exception as e:
             self.__logger.error(f"An error occured while trying to read the files for patient {self.patient_id}.")
             self.__logger.error(traceback.format_exc())
-            return None
+            raise Exception(f"An error occured while trying to read the files for patient {self.patient_id}.")
         
+        # ensure that only one dose file has summation type of 'plan'
+        summation_types = [dcmread(f).DoseSummationType.lower() for f in self.dicom_files['dose']]
+        if summation_types.count('plan') > 1:
+            self.__logger.error(f'Multiple dose files with summation type "plan" were identified for patient {self.patient_id}.')
+            raise ValueError()
+                
         # identify the radiation type
         if self.radiation_type is None and self.dicom_files['plan'] != []: 
             try:                
@@ -642,26 +651,30 @@ class DicomToolbox():
 
     def parse_rt_dose_files(self, dose_files=None, plan_file=None, patient_id = None):
         
+        assert dose_files is not None or patient_id is not None 
+        
         if patient_id is not None: 
             self.patient_id = str(patient_id)
-            dose_files = self.run_initial_check(self.patient_id)['dose']
-            plan_file = self.run_initial_check(self.patient_id)['plan']
-
-        assert dose_files is not None or patient_id is not None 
-                        
+            
+        if dose_files is None:
+            assert hasattr(self, 'patient_id'), 'No patient ID was specified.'
+            self.run_initial_check(self.patient_id)
+            dose_files, plan_file = self.dicom_files['dose'], self.dicom_files['plan']
+                     
         dose, args = {}, []
         for f in dose_files:
-            with dcmread(f) as ds:
-                                                
+            with dcmread(f) as ds:                                                
                 if len(dose_files) == 1: # handles the case for just one dose file
                     try: # check if the dose file is a beam-specific dose file
                         bn = int(ds.ReferencedRTPlanSequence[0][('300c','0020')][0][('300c','0004')][0][('300c','0006')].value)
                     except: # if not, assume it is a cumulative dose file
                         bn = 1
-                    self.__logger.info(f'Only one dose file was found for patient {self.patient_id}.')
-                    self.__logger.info('Assuming that the dose file contains the cummulative dose for the plan.')
+                    self.__logger.info(f'Only one dose file was found for patient {self.patient_id}. ' +
+                                        'Assuming that the dose file contains the cumulative dose for the plan.')
                 elif ds.DoseSummationType.lower() != 'plan': # handles the case for multiple dose files (beam-specific)
                     bn = int(ds.ReferencedRTPlanSequence[0][('300c','0020')][0][('300c','0004')][0][('300c','0006')].value)
+                elif ds.DoseSummationType.lower() == 'plan': # handles the case for multiple dose files (cumulative)
+                    bn = 'plan'
                                            
                 # Grab data
                 data = ds.pixel_array * ds.DoseGridScaling
@@ -671,6 +684,7 @@ class DicomToolbox():
                 dose_grid_scaling = float(ds.DoseGridScaling)
                 image_position = [np.round(float(i), self.coordinate_precision) for i in ds.ImagePositionPatient]
                 grid_offset_vector = np.round(np.array(ds.GridFrameOffsetVector), self.coordinate_precision)
+                summation_type = ds.DoseSummationType.lower()
                 
                 # Prepare coordinates
                 x = np.round(np.arange(ds.Columns)*xy_resolution[0] + image_position[0], self.coordinate_precision)
@@ -699,10 +713,10 @@ class DicomToolbox():
                 # Prepare dose object
                 if self.radiation_type == 'photon':
                     dose[bn] = PhotonDose(*[data.shape, data.max(), data.min(), (dx,dy,dz), 
-                                            dose_grid_scaling, units, data, coordinates])
+                                            dose_grid_scaling, units, data, coordinates, summation_type])
                 else:
                     dose[bn] = ProtonDose(*[data.shape, data.max(), data.min(), (dx,dy,dz), 
-                                            dose_grid_scaling, units, data, coordinates])
+                                            dose_grid_scaling, units, data, coordinates, summation_type])
                 
                 # Grab additional information from plan file if available
                 if plan_file is not None and plan_file != []:
@@ -771,9 +785,9 @@ class DicomToolbox():
         if files is None:
             self.patient_id = patient_id if patient_id is not None else self.patient_id
             assert self.patient_id is not None, 'Patient ID is missing.'
-            self.structure_files = self.run_initial_check(self.patient_id)['structures']
-        else:
-            self.structure_files = files
+            self.run_initial_check(self.patient_id)
+        
+        self.structure_files = self.dicom_files['structures']
             
         # ensure that mask names are in a list
         if type(mask_names) != type([]) and type(mask_names) == type(''): mask_names = [mask_names]
@@ -836,8 +850,7 @@ class DicomToolbox():
                             self.__logger.error(f'Failed to build the mask "{k}" for pat-{self.patient_id}.')
                             self.__logger.error(traceback.format_exc())
                             
-                        contours[name] = Mask(self.__return_empty_mask(resolution), resolution, coordinates, 
-                                                'not_specified', 'not_specified', 'not_specified')
+                        contours[name] = Mask(self.__return_empty_mask(resolution), resolution, coordinates, 'not_specified', 'not_specified', 'not_specified')
 
         return contours 
     

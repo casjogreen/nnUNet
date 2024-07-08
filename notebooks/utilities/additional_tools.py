@@ -63,7 +63,7 @@ def resize_to_user_resolution(volume, in_coords, voxel_dimensions, coord_precisi
         z_new = np.round(np.arange(z[0], z[-1]+dz, dz), coord_precision)
         y_new = np.round(np.arange(y[0], y[-1]+dy, dy), coord_precision)
         x_new = np.round(np.arange(x[0], x[-1]+dx, dx), coord_precision)
-        
+                
         # resize the dose volume
         new_volume = interpolate_volume(volume, (z,y,x), (z_new,y_new,x_new), boundError= False, fillValue=fill_value)
         
