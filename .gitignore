@@ -20,12 +20,14 @@ lib64/
 parts/
 sdist/
 raw_data/
+nnunet_results/
+preprocessed_data/
 var/
 *.egg-info/
 .installed.cfg
 *.egg
 *.h5
-notebooks/*.json
+*.json
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
